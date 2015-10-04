@@ -1,0 +1,4 @@
+[package]
+name = "da"
+version = "0.1.0"
+authors = ["Mikko Perttunen <cyndis@kapsi.fi>"]
