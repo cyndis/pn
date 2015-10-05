@@ -11,20 +11,18 @@ trait PnAlgorithm {
     fn receive(state: &mut Self::State, data: &[Self::Msg]);
 }
 
-struct PnGraph<'a, A: PnAlgorithm> {
-    nodes: &'a [&'a [(usize, usize)]],
+struct PnGraph<A: PnAlgorithm> {
+    nodes: Vec<Vec<(usize, usize)>>,
     states: Vec<A::State>
 }
 
-impl<'a, A: PnAlgorithm> PnGraph<'a, A> {
-    fn new(nodes: &'a [&'a [(usize, usize)]], input: &[A::Input])
-        -> PnGraph<'a, A>
-    {
+impl<A: PnAlgorithm> PnGraph<A> {
+    fn new(nodes: Vec<Vec<(usize, usize)>>, input: &[A::Input]) -> PnGraph<A> {
         assert_eq!(nodes.len(), input.len());
 
         PnGraph {
-            nodes: nodes,
-            states: input.iter().zip(nodes.iter()).map(|(i,n)| A::init(n.len(), i)).collect()
+            states: input.iter().zip(nodes.iter()).map(|(i,n)| A::init(n.len(), i)).collect(),
+            nodes: nodes
         }
     }
 
@@ -134,17 +132,17 @@ impl PnAlgorithm for Bmm {
 }
 
 fn main() {
-    let node_top0 = [(2,0), (3,0)];
-    let node_top1 = [(2,1), (3,1)];
-    let node_bot2 = [(0,0), (1,0)];
-    let node_bot3 = [(0,1), (1,1)];
+    let node_top0 = vec![(2,0), (3,0)];
+    let node_top1 = vec![(2,1), (3,1)];
+    let node_bot2 = vec![(0,0), (1,0)];
+    let node_bot3 = vec![(0,1), (1,1)];
 
     // 2-path
-    let nodes = &[
-        &node_top0[..],
-        &node_top1[..],
-        &node_bot2[..],
-        &node_bot3[..],
+    let nodes = vec![
+        node_top0,
+        node_top1,
+        node_bot2,
+        node_bot3,
     ];
 
     let mut graph: PnGraph<Bmm> = PnGraph::new(nodes, &[BmmInput::White, BmmInput::White, BmmInput::Black, BmmInput::Black]);
