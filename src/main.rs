@@ -47,6 +47,7 @@ impl<A: PnAlgorithm> PnGraph<A> {
 }
 
 struct Bmm;
+#[derive(Copy, Clone)]
 enum BmmInput {
     White,
     Black
@@ -58,6 +59,22 @@ enum BmmState {
     Mr(usize),
     Us,
     Ms(usize)
+}
+impl BmmState {
+    fn is_output(&self) -> bool {
+        match *self {
+            BmmState::Us | BmmState::Ms(_) => true,
+            _ => false
+        }
+    }
+
+    fn is_matched(&self) -> bool {
+        match *self {
+            BmmState::Ms(_) => true,
+            BmmState::Us => false,
+            _ => panic!("algorithm not complete")
+        }
+    }
 }
 #[derive(PartialEq, Eq, Debug)]
 enum BmmMsg {
@@ -131,27 +148,68 @@ impl PnAlgorithm for Bmm {
     }
 }
 
-fn main() {
-    let node_top0 = vec![(2,0), (3,0)];
-    let node_top1 = vec![(2,1), (3,1)];
-    let node_bot2 = vec![(0,0), (1,0)];
-    let node_bot3 = vec![(0,1), (1,1)];
+struct Vc3(PnGraph<Bmm>);
+impl Vc3 {
+    fn new(nodes: Vec<Vec<(usize, usize)>>) -> Vc3 {
+        let mut nodes_ = vec![];
+        for node in &nodes {
+            let mut a_node = vec![(0xdead, 0xbeef); node.len()];
+            let mut b_node = vec![(0xdead, 0xbeef); node.len()];
+            for (local_port, &(remote_node, remote_port)) in node.iter().enumerate() {
+                a_node[local_port] = (remote_node*2+1,remote_port);
+                b_node[local_port] = (remote_node*2+0,remote_port);
+            }
+            nodes_.push(a_node);
+            nodes_.push(b_node);
+        }
+        println!("{:?}", nodes_);
+        let input = [BmmInput::White, BmmInput::Black].iter().cloned().cycle().take(nodes_.len())
+                                                      .collect::<Vec<_>>();
+        Vc3(PnGraph::new(nodes_, &input))
+    }
 
-    // 2-path
+    fn run(&mut self) -> Vec<usize> {
+        while !self.0.states.iter().all(|s| s.is_output()) {
+            self.0.step();
+        }
+
+        let mut cover = vec![];
+        for (node_i, states) in self.0.states.chunks(2).enumerate() {
+            if states.iter().any(|s| s.is_matched()) {
+                cover.push(node_i);
+            }
+        }
+        cover
+    }
+}
+
+fn main() {
+    let node0 = vec![(1,0), (2,0)];
+    let node1 = vec![(0,0), (2,1)];
+    let node2 = vec![(0,1), (1,1)];
+
     let nodes = vec![
-        node_top0,
-        node_top1,
-        node_bot2,
-        node_bot3,
+        node0,
+        node1,
+        node2
     ];
 
-    let mut graph: PnGraph<Bmm> = PnGraph::new(nodes, &[BmmInput::White, BmmInput::White, BmmInput::Black, BmmInput::Black]);
+//     let nodes = vec![
+//         vec![(1,0)],
+//         vec![(0,0), (2,0)],
+//         vec![(1,1), (3,0)],
+//         vec![(2,1), (4,0)],
+//         vec![(3,1)]
+//     ];
 
-    loop {
-        println!("{:#?}", graph.states);
-        graph.step();
+    let mut graph = Vc3::new(nodes);
+    println!("{:?}", graph.run());
 
-        let mut dummy = String::new();
-        ::std::io::stdin().read_line(&mut dummy).unwrap();
-    }
+//     loop {
+//         println!("{:#?}", graph.states);
+//         graph.step();
+//
+//         let mut dummy = String::new();
+//         ::std::io::stdin().read_line(&mut dummy).unwrap();
+//     }
 }
