@@ -76,7 +76,7 @@ impl BmmState {
         }
     }
 }
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 enum BmmMsg {
     NoMsg,
     Proposal,
@@ -148,38 +148,29 @@ impl PnAlgorithm for Bmm {
     }
 }
 
-struct Vc3(PnGraph<Bmm>);
-impl Vc3 {
-    fn new(nodes: Vec<Vec<(usize, usize)>>) -> Vc3 {
-        let mut nodes_ = vec![];
-        for node in &nodes {
-            let mut a_node = vec![(0xdead, 0xbeef); node.len()];
-            let mut b_node = vec![(0xdead, 0xbeef); node.len()];
-            for (local_port, &(remote_node, remote_port)) in node.iter().enumerate() {
-                a_node[local_port] = (remote_node*2+1,remote_port);
-                b_node[local_port] = (remote_node*2+0,remote_port);
-            }
-            nodes_.push(a_node);
-            nodes_.push(b_node);
-        }
-        println!("{:?}", nodes_);
-        let input = [BmmInput::White, BmmInput::Black].iter().cloned().cycle().take(nodes_.len())
-                                                      .collect::<Vec<_>>();
-        Vc3(PnGraph::new(nodes_, &input))
+struct Vc3;
+#[derive(Debug)]
+struct Vc3State(BmmState, BmmState);
+#[derive(PartialEq, Eq, Debug, Clone)]
+struct Vc3Msg(BmmMsg, BmmMsg);
+impl PnAlgorithm for Vc3 {
+    type Input = ();
+    type State = (BmmState, BmmState);
+    type Msg = (BmmMsg, BmmMsg);
+
+    fn init(ports: usize, i: &()) -> (BmmState, BmmState) {
+        (Bmm::init(ports, &BmmInput::White), Bmm::init(ports, &BmmInput::Black))
     }
 
-    fn run(&mut self) -> Vec<usize> {
-        while !self.0.states.iter().all(|s| s.is_output()) {
-            self.0.step();
-        }
+    fn send(ports: usize, state: &(BmmState, BmmState)) -> Vec<(BmmMsg, BmmMsg)> {
+        Bmm::send(ports, &state.0).into_iter().zip(Bmm::send(ports, &state.1).into_iter())
+                                              .map(|(a,b)| (a,b)).collect()
+    }
 
-        let mut cover = vec![];
-        for (node_i, states) in self.0.states.chunks(2).enumerate() {
-            if states.iter().any(|s| s.is_matched()) {
-                cover.push(node_i);
-            }
-        }
-        cover
+    fn receive(state: &mut (BmmState, BmmState), data: &[(BmmMsg, BmmMsg)]) {
+        let (l, r): (Vec<_>, Vec<_>) = data.iter().cloned().unzip();
+        Bmm::receive(&mut state.0, &r);
+        Bmm::receive(&mut state.1, &l);
     }
 }
 
@@ -202,14 +193,19 @@ fn main() {
 //         vec![(3,1)]
 //     ];
 
-    let mut graph = Vc3::new(nodes);
-    println!("{:?}", graph.run());
+    let nodes = vec![
+        vec![(1,1)],
+        vec![(2,0), (0,0)],
+        vec![(1,0)]
+    ];
 
-//     loop {
-//         println!("{:#?}", graph.states);
-//         graph.step();
-//
-//         let mut dummy = String::new();
-//         ::std::io::stdin().read_line(&mut dummy).unwrap();
-//     }
+    let mut graph: PnGraph<Vc3> = PnGraph::new(nodes, &[(),(),()]);
+
+    loop {
+        println!("{:#?}", graph.states);
+        graph.step();
+
+        let mut dummy = String::new();
+        ::std::io::stdin().read_line(&mut dummy).unwrap();
+    }
 }
